@@ -1,0 +1,30 @@
+version: '3'
+services:
+  gcc-koi:
+    build:
+      context: ./gcc-koi
+    runtime: "runsc"
+  golang-koi:
+    build:
+      context: ./golang-koi
+    runtime: "runsc"
+  node-koi:
+    build:
+      context: ./node-koi
+    runtime: "runsc"
+  php-koi:
+    build:
+      context: ./php-koi
+    runtime: "runsc"
+  py-koi:
+    build:
+      context: ./py-koi
+    runtime: "runsc"
+  r-koi:
+    build:
+      context: ./r-koi
+    runtime: "runsc"
+  rust-koi:
+    build:
+      context: ./rust-koi
+    runtime: "runsc"
