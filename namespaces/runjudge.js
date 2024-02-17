@@ -1,11 +1,11 @@
 
 import sanitize from 'mongo-sanitize'
-import mongoose from 'mongoose'
 import UserModel from "../schema/userSchema.js"
 import ProblemModel from "../schema/problemSchema.js"
 import SubmissionSchema from '../schema/submissionSchema.js'
 import { Judge } from "../judge/judgeInstance.js";
-import { createClient } from 'redis'
+
+import { Redis } from 'ioredis'
 
 export const config = {
   api: {
@@ -13,19 +13,15 @@ export const config = {
   },
 };
 
-const JudgePage = async (socket) => {
-  const client = createClient();
-  await client.connect();
-  const url = process.env.MONGOCONNSTR;
-  if (!url) {
-    socket.emit('error', "internal server error")
-    socket.disconnect()
-  }
-  await mongoose.connect(url)
+const client = new Redis()
 
+
+const JudgePage = async (socket) => {
   let judgeInstance
 
   socket.on('feed', async msg => {
+
+    console.log("feed accepted")
 
     const data = await ProblemModel.find({ ProblemCode: parseInt(sanitize(socket.data.prob_id)) })
     const { TimeLimit, SupportedLang, Mem, ProblemCode, isSpecialJudge, TestProgress } = JSON.parse(JSON.stringify(data[0]))
@@ -40,11 +36,13 @@ const JudgePage = async (socket) => {
     let isSuccess
 
     try {
-      console.log(isSpecialJudge)
       judgeInstance = new Judge(msg.lang, Mem, 600000, isSpecialJudge)
-      await judgeInstance.CreateRunEnv(msg.codeData, TestProgress["SpecialJudge"])
+      let isJudgeEnvCreated = await judgeInstance.CreateRunEnv(msg.codeData, TestProgress["SpecialJudge"])
+      if(!isJudgeEnvCreated) {
+        socket.emit("error", "failed creating judge environment")
+      }
       await judgeInstance.compileCode()
-      await socket.emit("compile_end", "")
+      socket.emit("compile_end", "")
 
       const matchedCases = await judgeInstance.testCode(TimeLimit, ProblemCode, (a, b) => socket.emit("judge_progress", [a, b]))
       isCorrect = matchedCases.every(e => e.matched)
@@ -66,6 +64,7 @@ const JudgePage = async (socket) => {
       isSuccess = true
 
     } catch (e) {
+      console.log(e)
       await client.del(socket.data.uid)
 
       await SubmissionSchema.create({
@@ -128,7 +127,9 @@ const JudgePage = async (socket) => {
     socket.disconnect()
   });
   socket.on('disconnect', async () => {
-
+    if(judgeInstance) {
+      await judgeInstance.Terminate()
+    }
   })
 }
 

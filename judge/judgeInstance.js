@@ -128,7 +128,6 @@ export class Judge {
 
         } catch (e) {
             console.log(e)
-            console.log("docker not running")
             return false
         }
     }

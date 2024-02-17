@@ -21,7 +21,7 @@ const execAsync = (command) => {
 export default class SpecialJudgeInstance {
     constructor() {
         this.container
-        this.temporaryJudgeLocation = "/workspaces/online-judge"
+        this.temporaryJudgeLocation = "/workspaces/socket_server" //no trailing slash(/) allowed
         this.contName = crypto.randomBytes(10).toString('hex')
         this.languageHandlerInstance
         this.userOutputPath
@@ -130,7 +130,8 @@ export default class SpecialJudgeInstance {
                 })
 
                 base.stderr.on('data', (data) => {
-                    if (data.toString().includes("exited with non-zero status")) {
+                    if (!(data.toString().includes("Command being timed")) || !(data.toString().includes("Exit status: 0"))) {
+                        console.log(data.toString())
                         reject(`stderr`)
                     }
                 })

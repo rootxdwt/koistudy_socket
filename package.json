@@ -1,13 +1,14 @@
 {
   "dependencies": {
     "dotenv-vault": "^0.1.2",
+    "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
     "mongo-sanitize": "^1.1.0",
     "mongoose": "^8.0.4",
     "node-docker-api": "^1.1.22",
+    "nodemon": "3.0.3",
     "redis": "^4.6.12",
-    "socket.io": "^4.7.4",
-    "nodemon": "3.0.3"
+    "socket.io": "^4.7.4"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.5"

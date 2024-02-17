@@ -17,16 +17,21 @@
 	},
 	"runArgs": [
 		"--network=host"
-	]
+	],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "npm install -g nodemon"
+	"postCreateCommand": "npm install -g nodemon && npm install",
+	"postStartCommand": "nodemon  --env-file=.env server.js",
 
 	// Configure tool-specific properties.
-	// "customizations": {},
+	// "customizations": {
+	// 	"vscode":{"extensions": [
+	// 		"styled-components.vscode-styled-components"
+	// 	]}
+	// },
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"

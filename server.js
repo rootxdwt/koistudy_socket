@@ -4,6 +4,9 @@ import jwt from 'jsonwebtoken'
 import RunJudgePage from "./namespaces/runjudge.js"
 import RunCodePage from "./namespaces/runcode.js"
 import {createClient} from 'redis'
+import { Redis } from "ioredis";
+import dbConnect from "./lib/db_connection.js";
+
 const io = new Server(3010,{
     path: "/sockets/",
     cors: {
@@ -13,11 +16,11 @@ const io = new Server(3010,{
       credentials: true
     }
   });
+  const client = new Redis()
 
 io.of("/runjudge").on("connection", RunJudgePage).use(async (socket, next) => {
-    const client = createClient();
-    await client.connect();
     try {
+        await dbConnect()
         const SubmissionCode = crypto.randomBytes(5).toString('hex')
         const verifyData = jwt.verify(socket.handshake.auth.Authorization, process.env.JWTKEY)
         if (verifyData) {
@@ -26,7 +29,7 @@ io.of("/runjudge").on("connection", RunJudgePage).use(async (socket, next) => {
             if (await client.get(uid) === "true") {
                 next(new Error("ratelimited"));
             }else {
-                await client.set(uid, 'true', { EX: 60 });
+                await client.set(uid, 'true', "EX",60);
             }
             next()
         } else {

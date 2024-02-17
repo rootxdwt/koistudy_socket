@@ -17,7 +17,7 @@ const RunCodePage = async (socket) => {
         }
     })
     socket.on('disconnect', async () => {
-        if (container) {
+        if (judge) {
             await judge.Terminate()
         }
     })
