@@ -21,14 +21,14 @@ const JudgePage = async (socket) => {
 
   socket.on('feed', async msg => {
 
-    console.log("feed accepted")
-
     const data = await ProblemModel.find({ ProblemCode: parseInt(sanitize(socket.data.prob_id)) })
     const { TimeLimit, SupportedLang, Mem, ProblemCode, isSpecialJudge, TestProgress } = JSON.parse(JSON.stringify(data[0]))
 
     if (SupportedLang.indexOf(msg.lang) == -1) {
+      await client.del(socket.data.uid)
       socket.emit('error', "unsupported language")
       socket.disconnect()
+      return
     }
 
     let isCorrect
@@ -64,8 +64,6 @@ const JudgePage = async (socket) => {
       isSuccess = true
 
     } catch (e) {
-      console.log(e)
-      await client.del(socket.data.uid)
 
       await SubmissionSchema.create({
         User: socket.data.uid,
@@ -119,7 +117,6 @@ const JudgePage = async (socket) => {
   })
 
   socket.on('error', async (ex) => {
-    console.log("handled error");
     console.log(ex);
     try {
       await judgeInstance.Terminate()

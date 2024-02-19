@@ -29,7 +29,7 @@ io.of("/runjudge").on("connection", RunJudgePage).use(async (socket, next) => {
             if (await client.get(uid) === "true") {
                 next(new Error("ratelimited"));
             }else {
-                await client.set(uid, 'true', "EX",60);
+                await client.set(uid, 'true', "EX",300);
             }
             next()
         } else {
