@@ -3,9 +3,8 @@ import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import RunJudgePage from "./namespaces/runjudge.js"
 import RunCodePage from "./namespaces/runcode.js"
-import {createClient} from 'redis'
+
 import { Redis } from "ioredis";
-import dbConnect from "./lib/db_connection.js";
 
 const io = new Server(3010,{
     path: "/sockets/",
@@ -20,7 +19,6 @@ const io = new Server(3010,{
 
 io.of("/runjudge").on("connection", RunJudgePage).use(async (socket, next) => {
     try {
-        await dbConnect()
         const SubmissionCode = crypto.randomBytes(5).toString('hex')
         const verifyData = jwt.verify(socket.handshake.auth.Authorization, process.env.JWTKEY)
         if (verifyData) {

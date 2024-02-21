@@ -130,7 +130,7 @@ export default class SpecialJudgeInstance {
                 })
 
                 base.stderr.on('data', (data) => {
-                    if (!(data.toString().includes("Command being timed")) || !(data.toString().includes("Exit status: 0"))) {
+                    if (data.toString().includes("exited with non-zero status")) {
                         console.log(data.toString())
                         reject(`stderr`)
                     }

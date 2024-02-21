@@ -1,10 +1,7 @@
 
 import sanitize from 'mongo-sanitize'
-import UserModel from "../schema/userSchema.js"
-import ProblemModel from "../schema/problemSchema.js"
-import SubmissionSchema from '../schema/submissionSchema.js'
 import { Judge } from "../judge/judgeInstance.js";
-
+import clientPromise from '../lib/db_connection.js';
 import { Redis } from 'ioredis'
 
 export const config = {
@@ -13,19 +10,21 @@ export const config = {
   },
 };
 
-const client = new Redis()
+const redisclient = new Redis()
 
 
 const JudgePage = async (socket) => {
   let judgeInstance
+  let client = await clientPromise
+  let db =client.db()
 
   socket.on('feed', async msg => {
 
-    const data = await ProblemModel.find({ ProblemCode: parseInt(sanitize(socket.data.prob_id)) })
+    const data = await db.collection('problems').find({ ProblemCode: parseInt(sanitize(socket.data.prob_id)) }).toArray()
     const { TimeLimit, SupportedLang, Mem, ProblemCode, isSpecialJudge, TestProgress } = JSON.parse(JSON.stringify(data[0]))
 
     if (SupportedLang.indexOf(msg.lang) == -1) {
-      await client.del(socket.data.uid)
+      await redisclient.del(socket.data.uid)
       socket.emit('error', "unsupported language")
       socket.disconnect()
       return
@@ -39,8 +38,12 @@ const JudgePage = async (socket) => {
       judgeInstance = new Judge(msg.lang, Mem, 600000, isSpecialJudge)
       let isJudgeEnvCreated = await judgeInstance.CreateRunEnv(msg.codeData, TestProgress["SpecialJudge"])
       if(!isJudgeEnvCreated) {
+        await redisclient.del(socket.data.uid)
         socket.emit("error", "failed creating judge environment")
+        socket.disconnect()
+        return
       }
+      socket.emit("compile_start", "")
       await judgeInstance.compileCode()
       socket.emit("compile_end", "")
 
@@ -51,7 +54,7 @@ const JudgePage = async (socket) => {
         return { Mem: elem.memory, Time: elem.exect, State: elem.tle ? "TLE" : elem.matched ? "AC" : "AW" }
       })
 
-      await SubmissionSchema.create({
+      await db.collection('submissions').insertOne({
         User: socket.data.uid,
         Code: sanitize(msg.codeData),
         Status: isCorrect ? 'AC' : 'AW',
@@ -59,13 +62,19 @@ const JudgePage = async (socket) => {
         TC: databaseTCdata,
         Prob: parseInt(sanitize(socket.data.prob_id)),
         SubCode: socket.data.sub_code,
-        Lang: msg.lang
+        Lang: msg.lang,
+        Time: new Date()
       })
       isSuccess = true
 
     } catch (e) {
-
-      await SubmissionSchema.create({
+      if(["Runtime error", "Compile error"].indexOf(e.message)==-1) {
+        await redisclient.del(socket.data.uid)
+        socket.emit("error", "unknown")
+        socket.disconnect()
+        return
+      }
+      await db.collection('submissions').insertOne({
         User: socket.data.uid,
         Code: sanitize(msg.codeData),
         Status: e.message == "Compile error" ? "CE" : "ISE",
@@ -73,13 +82,14 @@ const JudgePage = async (socket) => {
         Prob: parseInt(sanitize(socket.data.prob_id)),
         SubCode: socket.data.sub_code,
         TC: [],
-        Lang: msg.lang
+        Lang: msg.lang,
+        Time: new Date()
       })
       isSuccess = false
     }
 
 
-    await client.del(socket.data.uid)
+    await redisclient.del(socket.data.uid)
     const updateOperations = [];
 
     updateOperations.push({
@@ -98,15 +108,15 @@ const JudgePage = async (socket) => {
       });
     }
 
-    const result = await UserModel.bulkWrite(updateOperations);
+    const result = await db.collection('users').bulkWrite(updateOperations);
 
     if (result.modifiedCount > 0) {
-      const updatedProblem = await ProblemModel.findOne({ ProblemCode: ProblemCode }, "-_id submitted solved");
+      const updatedProblem = await db.collection('problems').findOne({ ProblemCode: ProblemCode }, "-_id submitted solved");
       let calculatedRating = Math.ceil(9 * (1 - (updatedProblem["solved"] / (updatedProblem["submitted"] + 1)) ** 2))
       let rating = updatedProblem["solved"] == 0 ? 10 : calculatedRating < 0 ? 1 : calculatedRating
-      await ProblemModel.updateOne({ ProblemCode: ProblemCode }, { $inc: { submitted: 1 }, rating: rating });
+      await db.collection('problems').updateOne({ ProblemCode: ProblemCode }, { $inc: { submitted: 1 }, $set:{rating: rating} });
       if (isCorrect) {
-        await ProblemModel.updateOne({ ProblemCode: ProblemCode }, { $inc: { solved: 1 } });
+        await db.collection('problems').updateOne({ ProblemCode: ProblemCode }, { $inc: { solved: 1 } });
       }
     }
 

@@ -219,6 +219,7 @@ export class Judge {
                     await fs.promises.writeFile(`${this.temporaryJudgeLocation}/${this.contName}_${index}.out`,'')
                     var tcdata = fs.createReadStream(`${this.testCaseLocation}/${problemId}/${elem}`)
                     const stdinWritable = baseCommand.stdin;
+                    let isstdErr=false
 
                     tcdata.on('data', (chunk) => {
                         try{
@@ -243,13 +244,14 @@ export class Judge {
                                 }
                                 callBack(index, (wroteBytesSize) / (tc_stat.size))
                             });
-                        }catch(e){}
+                        }catch(e){ }
                     })
                     baseCommand.stderr.on('data', async (data) => {
                         const dta = data.toString()
+
                         if (dta.includes("exited with non-zero status")) {
                             clearTimeout(tle)
-                            reject("stdError")
+                            isstdErr=true
                             try {
                                 await fs.promises.unlink(`${this.temporaryJudgeLocation}/${this.contName}_${index}.out`)
                             } catch (e) { }
@@ -273,18 +275,24 @@ export class Judge {
                         if (code == 137 && isTLE[index]) {
                             matchedCases[index]["tle"] = true
                             await fs.promises.unlink(`${this.temporaryJudgeLocation}/${this.contName}_${index}.out`)
-                        } else {
+                        } else if(code != 0 && isstdErr) {
+                            reject({ message: "Runtime error"})
+                        }
+                        else{
                             let correct_out = await createFileHash_Fast(`${this.testCaseLocation}/${problemId}/${elem.replace("in", "out")}`)
                             let user_out = await createFileHash_Fast(`${this.temporaryJudgeLocation}/${this.contName}_${index}.out`)
-                            console.log(correct_out,user_out)
+
                             if (correct_out === user_out) {
                                 matchedCases[index]["matched"] = true
                             }
                             else if (this.specialJudge) {
                                 await this.specialJudge.feed(`${this.temporaryJudgeLocation}/${this.contName}_${index}.out`, `${this.testCaseLocation}/${problemId}/${elem}`)
-
-                                if (await this.specialJudge.judge()) {
-                                    matchedCases[index]["matched"] = true
+                                try{
+                                    if (await this.specialJudge.judge()) {
+                                        matchedCases[index]["matched"] = true
+                                    }
+                                }catch(e) {
+                                    reject({message:"internal error"})
                                 }
                             }
                             await fs.promises.unlink(`${this.temporaryJudgeLocation}/${this.contName}_${index}.out`)
